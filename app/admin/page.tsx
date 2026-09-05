@@ -155,24 +155,50 @@ function EventSelector({ onSelect }: { onSelect: (event: Event, category: EventC
                           <p className="font-racing text-sm font-bold text-white tracking-wider">{cat.name}</p>
                           <p className="font-racing text-xs text-white/30">{cat.candidates.length} candidates • {cat.lap_count} laps</p>
                         </div>
-                        {cat.status === 'COMPLETED' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                         <ChevronRight className="w-4 h-4 text-white/20" />
                       </button>
                     ))}
+                  {event.event_categories.length === 0 && (
+                    <div className="p-4 text-center">
+                      <p className="font-racing text-xs text-white/40 mb-2">Belum ada kategori di event ini</p>
+                      <Link
+                        href={`/admin/events/${event.id}`}
+                        className="font-racing text-xs bg-[#e10600] text-white px-3 py-1.5 inline-block font-bold tracking-wider uppercase hover:bg-[#b00000]"
+                      >
+                        + Tambah Kategori Sekarang
+                      </Link>
+                    </div>
+                  )}
+                  <div className="p-3 bg-[#0d0d0d] border-t border-[#1a1a1a] flex justify-between items-center">
+                    <span className="font-racing text-xs text-white/30">Total {event.event_categories.length} Kategori</span>
+                    <Link
+                      href={`/admin/events/${event.id}`}
+                      className="font-racing text-xs text-[#e10600] hover:underline tracking-wider flex items-center gap-1 font-bold uppercase"
+                    >
+                      + KELOLA / TAMBAH KATEGORI →
+                    </Link>
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       ))}
-      {events.length === 0 && (
-        <div className="text-center py-8">
-          <p className="font-racing text-white/30 tracking-widest">NO EVENTS FOUND</p>
-          <Link href="/admin/events/new" className="font-racing text-xs text-[#e10600] tracking-wider mt-2 block hover:underline">
-            CREATE EVENT →
-          </Link>
-        </div>
-      )}
+
+      <div className="pt-2 flex items-center justify-between border-t border-[#1a1a1a]">
+        <Link
+          href="/admin/categories"
+          className="font-racing text-xs text-yellow-500 hover:text-yellow-400 tracking-wider flex items-center gap-1 font-bold uppercase"
+        >
+          📂 CATEGORY LIBRARY →
+        </Link>
+        <Link
+          href="/admin/events/new"
+          className="font-racing text-xs text-[#e10600] hover:underline tracking-wider font-bold uppercase"
+        >
+          + BUAT EVENT BARU →
+        </Link>
+      </div>
     </div>
   )
 }
@@ -272,8 +298,11 @@ export default function AdminPage() {
           <span className="font-racing text-xs text-white/30 tracking-widest">ASPIRE GRAND PRIX — CAWU 3 : 2026</span>
         </div>
         <div className="flex items-center gap-3">
+          <Link href="/admin/categories" className="font-racing text-xs text-yellow-500/80 hover:text-yellow-400 tracking-widest flex items-center gap-1">
+            📁 LIBRARY
+          </Link>
           <Link href="/admin/events" className="font-racing text-xs text-white/40 hover:text-white tracking-widest flex items-center gap-1">
-            <Settings className="w-3 h-3" /> MANAGE
+            <Settings className="w-3 h-3" /> EVENTS
           </Link>
           <ConnectionStatus isConnected={isConnected} />
           <button
