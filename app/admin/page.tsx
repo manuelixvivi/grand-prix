@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -8,10 +8,11 @@ import { useRaceSession } from '@/hooks/useRaceSession'
 import { useCurrentLap, useVoteCounts } from '@/hooks/useLapResults'
 import { useGridPresence } from '@/hooks/useGridPresence'
 import { ConnectionStatus, LapCounter, RaceStatusBadge, FlagBanner } from '@/components/RaceUI'
+import { formatTime } from '@/lib/utils'
 import type { Event, EventCategory, EventCategoryCandidate } from '@/lib/supabase/types'
 import {
   Play, Flag, StopCircle, Lock, Eye, SkipForward, Trophy, RotateCcw,
-  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut, Sparkles, Users
+  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut, Sparkles, Users, Bot
 } from 'lucide-react'
 
 // ---- Confirmation Dialog ----
@@ -340,10 +341,16 @@ export default function AdminPage() {
 
   const categoryId = selectedCategory?.id ?? null
   const { session, isConnected, isLoading } = useRaceSession(categoryId)
+  const state = session?.state ?? 'IDLE'
+  const flag = session?.flag ?? 'NONE'
   const { onlineCount } = useGridPresence(categoryId)
   const lap = useCurrentLap(categoryId, session?.current_lap_number ?? 1)
   const voteCounts = useVoteCounts(lap?.id ?? null)
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0)
+
+  const [autoAdvance, setAutoAdvance] = useState<boolean>(true)
+  const [adminTimeLeft, setAdminTimeLeft] = useState<number | null>(null)
+  const isAutoAdvancingRef = useRef<boolean>(false)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -496,6 +503,133 @@ export default function AdminPage() {
     }
   }
 
+  // Countdown timer in admin
+  useEffect(() => {
+    if (!lap?.voting_ends_at || state !== 'VOTING') {
+      setAdminTimeLeft(null)
+      return
+    }
+    const update = () => {
+      const diff = Math.max(0, Math.floor((new Date(lap.voting_ends_at!).getTime() - Date.now()) / 1000))
+      setAdminTimeLeft(diff)
+    }
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [lap?.voting_ends_at, state])
+
+  // Auto-Pilot Director Loop: Automatically advance laps until podium
+  useEffect(() => {
+    if (!autoAdvance || !session || !selectedCategory || flag === 'RED') {
+      isAutoAdvancingRef.current = false
+      return
+    }
+
+    // Step A: When in VOTING and time reaches 0, auto close & auto reveal
+    if (state === 'VOTING' && lap?.voting_ends_at) {
+      const endsAt = new Date(lap.voting_ends_at).getTime()
+      const interval = setInterval(async () => {
+        if (!autoAdvance) return
+        const remaining = endsAt - Date.now()
+        if (remaining <= 0 && !isAutoAdvancingRef.current) {
+          isAutoAdvancingRef.current = true
+          clearInterval(interval)
+          showToast(`⏱️ Waktu Lap ${session.current_lap_number} selesai! Menutup voting...`)
+
+          try {
+            await postRace('CLOSE_VOTING', {
+              sessionId: session.id,
+              categoryId: selectedCategory.id,
+              lapNumber: session.current_lap_number,
+            })
+
+            await new Promise((r) => setTimeout(r, 2000))
+            showToast(`📊 Menampilkan hasil Lap ${session.current_lap_number} di layar utama...`)
+            await postRace('REVEAL_RESULT', {
+              sessionId: session.id,
+              categoryId: selectedCategory.id,
+              eventId: selectedEvent?.id,
+              lapId: lap.id,
+            })
+          } catch (e) {
+            console.error('Auto close error:', e)
+          } finally {
+            isAutoAdvancingRef.current = false
+          }
+        }
+      }, 1000)
+
+      return () => clearInterval(interval)
+    }
+
+    // Step B: When in VOTING_CLOSED (e.g. manually closed early) -> auto reveal
+    if (state === 'VOTING_CLOSED' && lap?.id) {
+      if (isAutoAdvancingRef.current) return
+      const timer = setTimeout(async () => {
+        if (!autoAdvance) return
+        isAutoAdvancingRef.current = true
+        try {
+          showToast(`📊 Menampilkan hasil Lap ${session.current_lap_number} di layar utama...`)
+          await postRace('REVEAL_RESULT', {
+            sessionId: session.id,
+            categoryId: selectedCategory.id,
+            eventId: selectedEvent?.id,
+            lapId: lap.id,
+          })
+        } catch (e) {
+          console.error('Auto reveal error:', e)
+        } finally {
+          isAutoAdvancingRef.current = false
+        }
+      }, 2000)
+
+      return () => clearTimeout(timer)
+    }
+
+    // Step C: In RESULT_REVEAL / LAP_COMPLETE -> wait 7s then advance to NEXT LAP or PODIUM
+    if (['RESULT_REVEAL', 'LAP_COMPLETE'].includes(state)) {
+      if (isAutoAdvancingRef.current) return
+
+      const timer = setTimeout(async () => {
+        if (!autoAdvance) return
+        isAutoAdvancingRef.current = true
+
+        try {
+          const totalLaps = selectedCategory.lap_count
+          const currentLap = session.current_lap_number
+
+          if (currentLap < totalLaps) {
+            showToast(`🚦 Bersiap untuk Lap ${currentLap + 1}...`)
+            await handleNextLap()
+          } else {
+            showToast('🏆 Semua lap selesai! Menampilkan podium juara...')
+            await postRace('SHOW_PODIUM', {
+              sessionId: session.id,
+              categoryId: selectedCategory.id,
+            })
+          }
+        } catch (e) {
+          console.error('Auto next lap error:', e)
+        } finally {
+          isAutoAdvancingRef.current = false
+        }
+      }, 7000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [
+    autoAdvance,
+    state,
+    flag,
+    lap?.voting_ends_at,
+    lap?.id,
+    session?.id,
+    session?.current_lap_number,
+    selectedCategory?.id,
+    selectedCategory?.lap_count,
+    selectedEvent?.id,
+  ])
+
   const requireConfirm = (message: string, action: () => void) => {
     setConfirm({ message, action })
   }
@@ -504,9 +638,6 @@ export default function AdminPage() {
     await fetch('/api/admin/logout', { method: 'POST' })
     window.location.href = '/'
   }
-
-  const state = session?.state ?? 'IDLE'
-  const flag = session?.flag ?? 'NONE'
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -616,6 +747,34 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* Auto Advance Toggle */}
+              <div className="border-t border-[#1a1a1a] pt-3 flex items-center justify-between bg-[#0d0d0d] p-2.5 rounded-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🤖</span>
+                  <div>
+                    <span className="font-racing text-xs font-bold text-white tracking-wider">
+                      AUTO ADVANCE: {autoAdvance ? 'AKTIF (OTOMATIS LANJUT LAP)' : 'MANUAL'}
+                    </span>
+                    <p className="font-racing text-[10px] text-white/40">
+                      {autoAdvance
+                        ? 'Voting otomatis ditutup saat timer habis, hasil diumumkan, dan lanjut ke lap berikutnya sampai podium.'
+                        : 'Admin menekan tombol untuk setiap tahapan lap secara manual.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoAdvance((prev) => !prev)}
+                  className={`font-racing text-xs font-bold px-3 py-1 border transition-colors ${
+                    autoAdvance
+                      ? 'bg-green-950/60 border-green-700 text-green-300 hover:bg-green-900/60'
+                      : 'bg-[#181818] border-[#333] text-white/50 hover:text-white'
+                  }`}
+                >
+                  {autoAdvance ? '✓ AKTIF' : 'MANUAL'}
+                </button>
+              </div>
+
               <div className="border-t border-[#1a1a1a] pt-3 flex items-center justify-between">
                 {session ? (
                   <LapCounter current={session.current_lap_number} total={selectedCategory.lap_count} />
@@ -691,6 +850,21 @@ export default function AdminPage() {
               {/* During voting */}
               {state === 'VOTING' && (
                 <div className="space-y-3">
+                  {/* Countdown Timer Banner */}
+                  <div className="p-3 bg-green-950/30 border border-green-700/60 rounded text-center">
+                    <div className="flex items-center justify-between text-xs font-racing text-green-400">
+                      <span>SISA WAKTU VOTING LAP {session?.current_lap_number}:</span>
+                      <span className="font-bold text-base tabular-nums">
+                        {adminTimeLeft !== null ? formatTime(adminTimeLeft) : '...'}
+                      </span>
+                    </div>
+                    {autoAdvance && (
+                      <p className="font-racing text-[11px] text-green-400/70 mt-1">
+                        🤖 Auto Pilot: Voting akan ditutup otomatis saat timer 00:00, hasil diumumkan, dan langsung lanjut ke Lap berikutnya.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <AdminButton
                       variant="yellow"
@@ -722,26 +896,48 @@ export default function AdminPage() {
 
               {/* After voting closed */}
               {state === 'VOTING_CLOSED' && (
-                <AdminButton
-                  variant="primary"
-                  icon={Eye}
-                  onClick={() => callAction('REVEAL_RESULT', { eventId: selectedEvent?.id })}
-                  loading={actionLoading === 'REVEAL_RESULT'}
-                >
-                  REVEAL RESULT
-                </AdminButton>
+                <div className="space-y-2">
+                  {autoAdvance && (
+                    <div className="p-2.5 bg-yellow-950/30 border border-yellow-700/50 rounded text-center">
+                      <p className="font-racing text-xs text-yellow-300 font-bold tracking-wider animate-pulse">
+                        🤖 Auto Pilot: Menghitung & membuka hasil lap...
+                      </p>
+                    </div>
+                  )}
+                  <AdminButton
+                    variant="primary"
+                    icon={Eye}
+                    onClick={() => callAction('REVEAL_RESULT', { eventId: selectedEvent?.id })}
+                    loading={actionLoading === 'REVEAL_RESULT'}
+                  >
+                    REVEAL RESULT
+                  </AdminButton>
+                </div>
               )}
 
               {/* After result reveal */}
               {['RESULT_REVEAL', 'LAP_COMPLETE'].includes(state) && (
-                <AdminButton
-                  variant="primary"
-                  icon={SkipForward}
-                  onClick={handleNextLap}
-                  loading={actionLoading === 'NEXT_LAP'}
-                >
-                  NEXT LAP →
-                </AdminButton>
+                <div className="space-y-2">
+                  {autoAdvance && session && selectedCategory && (
+                    <div className="p-2.5 bg-yellow-950/30 border border-yellow-700/50 rounded text-center">
+                      <p className="font-racing text-xs text-yellow-300 font-bold tracking-wider animate-pulse">
+                        {session.current_lap_number < selectedCategory.lap_count
+                          ? `🤖 Auto Pilot: Memulai Lap ${session.current_lap_number + 1} secara otomatis dalam beberapa detik...`
+                          : '🤖 Auto Pilot: Membuka Podium Juara secara otomatis dalam beberapa detik...'}
+                      </p>
+                    </div>
+                  )}
+                  <AdminButton
+                    variant="primary"
+                    icon={SkipForward}
+                    onClick={handleNextLap}
+                    loading={actionLoading === 'NEXT_LAP'}
+                  >
+                    {session?.current_lap_number === selectedCategory?.lap_count
+                      ? '🏆 TAMPILKAN PODIUM AKHIR'
+                      : `NEXT LAP (${(session?.current_lap_number ?? 1) + 1}) →`}
+                  </AdminButton>
+                </div>
               )}
 
               {/* Final results */}
