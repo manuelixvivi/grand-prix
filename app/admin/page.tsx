@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRaceSession } from '@/hooks/useRaceSession'
 import { useCurrentLap, useVoteCounts } from '@/hooks/useLapResults'
+import { useGridPresence } from '@/hooks/useGridPresence'
 import { ConnectionStatus, LapCounter, RaceStatusBadge, FlagBanner } from '@/components/RaceUI'
 import type { Event, EventCategory, EventCategoryCandidate } from '@/lib/supabase/types'
 import {
   Play, Flag, StopCircle, Lock, Eye, SkipForward, Trophy, RotateCcw,
-  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut, Sparkles
+  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut, Sparkles, Users
 } from 'lucide-react'
 
 // ---- Confirmation Dialog ----
@@ -339,6 +340,7 @@ export default function AdminPage() {
 
   const categoryId = selectedCategory?.id ?? null
   const { session, isConnected, isLoading } = useRaceSession(categoryId)
+  const { onlineCount } = useGridPresence(categoryId)
   const lap = useCurrentLap(categoryId, session?.current_lap_number ?? 1)
   const voteCounts = useVoteCounts(lap?.id ?? null)
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0)
@@ -397,6 +399,105 @@ export default function AdminPage() {
     }
   }, [session, selectedEvent, selectedCategory, lap])
 
+  const handleStartRace = async () => {
+    setActionLoading('START_RACE')
+    try {
+      const res = await fetch('/api/race', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'START_RACE',
+          eventId: selectedEvent?.id,
+          categoryId: selectedCategory?.id,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(`Error: ${data.error}`)
+        return
+      }
+
+      const activeSessionId = data.session?.id || session?.id
+      showToast('🚦 1/5 Lampu Menyala...')
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
+
+      await new Promise((r) => setTimeout(r, 1200))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
+
+      await new Promise((r) => setTimeout(r, 1200))
+      await callAction('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
+      showToast('🗳️ VOTING OPEN!')
+    } catch {
+      showToast('Gagal memulai race')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleNextLap = async () => {
+    setActionLoading('NEXT_LAP')
+    try {
+      const res = await fetch('/api/race', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'NEXT_LAP',
+          sessionId: session?.id,
+          categoryId: selectedCategory?.id,
+          lapNumber: session?.current_lap_number,
+          totalLaps: selectedCategory?.lap_count,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(`Error: ${data.error}`)
+        return
+      }
+
+      if (data.done) {
+        showToast('🏁 Semua lap selesai! Menampilkan hasil akhir.')
+        return
+      }
+
+      const activeSessionId = session?.id
+      showToast(`🚦 LAP ${data.nextLap} — 1/5 Lampu Menyala...`)
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
+
+      await new Promise((r) => setTimeout(r, 800))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
+
+      await new Promise((r) => setTimeout(r, 1200))
+      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
+
+      await new Promise((r) => setTimeout(r, 1200))
+      await callAction('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
+      showToast(`🗳️ VOTING LAP ${data.nextLap} DIBUKA!`)
+    } catch {
+      showToast('Gagal lanjut ke lap berikutnya')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const requireConfirm = (message: string, action: () => void) => {
     setConfirm({ message, action })
   }
@@ -419,6 +520,12 @@ export default function AdminPage() {
           <span className="font-racing text-xs text-white/30 tracking-widest">ASPIRE GRAND PRIX — CAWU 3 : 2026</span>
         </div>
         <div className="flex items-center gap-3">
+          {selectedCategory && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-950/40 border border-green-800/60 text-green-400 font-racing text-xs tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span>{onlineCount} SISWA DI GRID</span>
+            </div>
+          )}
           <Link href="/admin/categories" className="font-racing text-xs text-yellow-500/80 hover:text-yellow-400 tracking-widest flex items-center gap-1">
             📁 LIBRARY
           </Link>
@@ -511,12 +618,20 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {session && (
-                <div className="border-t border-[#1a1a1a] pt-3 flex items-center justify-between">
+              <div className="border-t border-[#1a1a1a] pt-3 flex items-center justify-between">
+                {session ? (
                   <LapCounter current={session.current_lap_number} total={selectedCategory.lap_count} />
-                  <RaceStatusBadge state={state} />
+                ) : (
+                  <span className="font-racing text-xs text-white/40 tracking-wider">STANDBY</span>
+                )}
+                <div className="flex items-center gap-3">
+                  <span className="font-racing text-xs text-green-400 font-bold flex items-center gap-1.5 bg-green-950/40 border border-green-800/50 px-2.5 py-1 rounded-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
+                    👥 {onlineCount} PEMILIH DI GRID
+                  </span>
+                  {session && <RaceStatusBadge state={state} />}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Flag banner */}
@@ -532,7 +647,7 @@ export default function AdminPage() {
                   <AdminButton
                     variant="primary"
                     icon={Play}
-                    onClick={() => callAction('START_RACE')}
+                    onClick={handleStartRace}
                     loading={actionLoading === 'START_RACE'}
                   >
                     {state === 'CHEQUERED_FLAG' ? '🏁 BALAPAN ULANG (RESTART RACE)' : '🏁 START RACE (MULAI BALAPAN)'}
@@ -624,7 +739,7 @@ export default function AdminPage() {
                 <AdminButton
                   variant="primary"
                   icon={SkipForward}
-                  onClick={() => callAction('NEXT_LAP')}
+                  onClick={handleNextLap}
                   loading={actionLoading === 'NEXT_LAP'}
                 >
                   NEXT LAP →

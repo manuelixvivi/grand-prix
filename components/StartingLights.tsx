@@ -1,16 +1,47 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getActiveLightCount } from '@/lib/utils'
 import type { RaceState } from '@/lib/supabase/types'
 
 interface StartingLightsProps {
   state: RaceState
+  startedAt?: string | null
 }
 
-export function StartingLights({ state }: StartingLightsProps) {
-  const activeCount = getActiveLightCount(state)
+export function StartingLights({ state, startedAt }: StartingLightsProps) {
+  const dbActiveCount = getActiveLightCount(state)
   const isLightsOut = state === 'LIGHTS_OUT'
+  const [clientCount, setClientCount] = useState<number>(dbActiveCount)
+
+  // Client-side timer interpolation: ensures lights NEVER get stuck even if network delays
+  useEffect(() => {
+    if (state === 'LIGHTS_OUT') {
+      setClientCount(0)
+      return
+    }
+
+    if (!['LIGHTS_1', 'LIGHTS_2', 'LIGHTS_3', 'LIGHTS_4', 'LIGHTS_5'].includes(state)) {
+      setClientCount(dbActiveCount)
+      return
+    }
+
+    // Set initial from DB
+    setClientCount((prev) => Math.max(prev, dbActiveCount))
+
+    // Fallback timer if DB updates lag: step every 800ms
+    const interval = setInterval(() => {
+      setClientCount((prev) => {
+        if (prev < 5) return prev + 1
+        return prev
+      })
+    }, 850)
+
+    return () => clearInterval(interval)
+  }, [state, dbActiveCount])
+
+  const activeCount = isLightsOut ? 0 : Math.max(dbActiveCount, clientCount)
   const showLights = ['READY', 'LIGHTS_1', 'LIGHTS_2', 'LIGHTS_3', 'LIGHTS_4', 'LIGHTS_5', 'LIGHTS_OUT'].includes(state)
 
   if (!showLights) return null

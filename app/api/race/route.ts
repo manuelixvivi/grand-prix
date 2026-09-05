@@ -1,89 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPointsForPosition } from '@/lib/utils'
-import type { RaceState } from '@/lib/supabase/types'
-
-const LIGHTS_SEQUENCE: RaceState[] = ['LIGHTS_1', 'LIGHTS_2', 'LIGHTS_3', 'LIGHTS_4', 'LIGHTS_5']
-const LIGHTS_DELAY_MS = 800
-
-async function advanceLights(sessionId: string, categoryId: string, currentState: RaceState, votingDuration: number) {
-  const supabase = await createClient()
-  const idx = LIGHTS_SEQUENCE.indexOf(currentState)
-
-  if (idx < LIGHTS_SEQUENCE.length - 1) {
-    const next = LIGHTS_SEQUENCE[idx + 1]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('race_sessions') as any).update({ state: next }).eq('id', sessionId)
-    setTimeout(() => advanceLights(sessionId, categoryId, next, votingDuration), LIGHTS_DELAY_MS)
-  } else {
-    // All 5 lights on — brief pause then LIGHTS_OUT
-    setTimeout(async () => {
-      const sup = await createClient()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sup.from('race_sessions') as any).update({ state: 'LIGHTS_OUT', flag: 'GREEN' }).eq('id', sessionId)
-      // Brief delay then open voting
-      setTimeout(async () => {
-        const s = await createClient()
-        const votingEndsAt = new Date(Date.now() + votingDuration * 1000).toISOString()
-
-        // Get current lap number
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: sessData } = await (s.from('race_sessions') as any).select('current_lap_number').eq('id', sessionId).single()
-        const lapNum = (sessData as { current_lap_number: number } | null)?.current_lap_number ?? 1
-
-        // Get or create current lap
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existingLap } = await (s.from('laps') as any)
-          .select('id')
-          .eq('event_category_id', categoryId)
-          .eq('lap_number', lapNum)
-          .maybeSingle()
-
-        const existingLapTyped = existingLap as { id: string } | null
-
-        if (!existingLapTyped) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (s.from('laps') as any).insert({
-            event_category_id: categoryId,
-            lap_number: lapNum,
-            status: 'VOTING',
-            started_at: new Date().toISOString(),
-            voting_opened_at: new Date().toISOString(),
-            voting_ends_at: votingEndsAt,
-          })
-        } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (s.from('laps') as any).update({
-            status: 'VOTING',
-            voting_opened_at: new Date().toISOString(),
-            voting_ends_at: votingEndsAt,
-          }).eq('id', existingLapTyped.id)
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (s.from('race_sessions') as any).update({
-          state: 'VOTING',
-          flag: 'GREEN',
-        }).eq('id', sessionId)
-
-        // Auto-close voting after duration
-        setTimeout(async () => {
-          const autoClose = await createClient()
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: sess } = await (autoClose.from('race_sessions') as any).select('state').eq('id', sessionId).single()
-          const sessTyped = sess as { state: string } | null
-          if (sessTyped?.state === 'VOTING') {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (autoClose.from('race_sessions') as any).update({ state: 'VOTING_CLOSED', flag: 'NONE' }).eq('id', sessionId)
-          }
-        }, votingDuration * 1000 + 2000)
-      }, 1500)
-    }, 1200)
-  }
-}
 
 type AnyTable = ReturnType<Awaited<ReturnType<typeof createClient>>['from']>
-// Helper to cast supabase table query to avoid 'never' issues with unregistered schema
+// Helper to cast supabase table query
 function tb(supabase: Awaited<ReturnType<typeof createClient>>, table: string): AnyTable {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (supabase as any).from(table)
@@ -97,6 +17,8 @@ export async function POST(request: Request) {
     sessionId?: string
     eventId?: string
     categoryId?: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any
   }
 
   try {
@@ -112,14 +34,15 @@ export async function POST(request: Request) {
         const catTyped = cat as { voting_duration_seconds: number; lap_count: number } | null
         if (!catTyped) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
 
+        const nowIso = new Date().toISOString()
         const { data: session } = await tb(supabase, 'race_sessions')
           .upsert({
             event_id: eventId,
             event_category_id: categoryId,
-            state: 'READY',
+            state: 'LIGHTS_1',
             flag: 'NONE',
             current_lap_number: 1,
-            started_at: new Date().toISOString(),
+            started_at: nowIso,
           }, { onConflict: 'event_category_id' })
           .select()
           .single()
@@ -132,10 +55,68 @@ export async function POST(request: Request) {
           status: 'LIVE',
         }).eq('id', eventId)
 
-        setTimeout(() => advanceLights(sessionTyped.id, categoryId, 'LIGHTS_1', catTyped.voting_duration_seconds), 2000)
-        await tb(supabase, 'race_sessions').update({ state: 'LIGHTS_1' }).eq('id', sessionTyped.id)
+        return NextResponse.json({
+          success: true,
+          session: sessionTyped,
+          duration: catTyped.voting_duration_seconds,
+          startedAt: nowIso,
+        })
+      }
 
-        return NextResponse.json({ success: true, session: sessionTyped })
+      case 'SET_STATE': {
+        if (!sessionId || !body.state) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+        const updateData: Record<string, unknown> = { state: body.state }
+        if (body.flag) updateData.flag = body.flag
+        await tb(supabase, 'race_sessions').update(updateData).eq('id', sessionId)
+        return NextResponse.json({ success: true })
+      }
+
+      case 'OPEN_VOTING': {
+        if (!sessionId || !categoryId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+
+        const { data: cat } = await tb(supabase, 'event_categories')
+          .select('voting_duration_seconds')
+          .eq('id', categoryId)
+          .single()
+
+        const duration = (cat as { voting_duration_seconds: number } | null)?.voting_duration_seconds ?? 30
+        const votingEndsAt = new Date(Date.now() + duration * 1000).toISOString()
+
+        const { data: sessData } = await tb(supabase, 'race_sessions').select('current_lap_number').eq('id', sessionId).single()
+        const lapNum = (sessData as { current_lap_number: number } | null)?.current_lap_number ?? 1
+
+        const { data: existingLap } = await tb(supabase, 'laps')
+          .select('id')
+          .eq('event_category_id', categoryId)
+          .eq('lap_number', lapNum)
+          .maybeSingle()
+
+        const existingLapTyped = existingLap as { id: string } | null
+
+        if (!existingLapTyped) {
+          await tb(supabase, 'laps').insert({
+            event_category_id: categoryId,
+            lap_number: lapNum,
+            status: 'VOTING',
+            started_at: new Date().toISOString(),
+            voting_opened_at: new Date().toISOString(),
+            voting_ends_at: votingEndsAt,
+          })
+        } else {
+          await tb(supabase, 'laps').update({
+            status: 'VOTING',
+            voting_opened_at: new Date().toISOString(),
+            voting_ends_at: votingEndsAt,
+          }).eq('id', existingLapTyped.id)
+        }
+
+        await tb(supabase, 'race_sessions').update({
+          state: 'VOTING',
+          flag: 'GREEN',
+          voting_ends_at: votingEndsAt,
+        }).eq('id', sessionId)
+
+        return NextResponse.json({ success: true, votingEndsAt })
       }
 
       case 'SET_FLAG': {
@@ -244,20 +225,11 @@ export async function POST(request: Request) {
         }).eq('event_category_id', categoryId).eq('lap_number', body.lapNumber)
 
         await tb(supabase, 'race_sessions').update({
-          state: 'READY',
+          state: 'LIGHTS_1',
           current_lap_number: nextLap,
           flag: 'NONE',
+          started_at: new Date().toISOString(),
         }).eq('id', sessionId)
-
-        const { data: cat } = await tb(supabase, 'event_categories')
-          .select('voting_duration_seconds')
-          .eq('id', categoryId)
-          .single()
-
-        const catTyped = cat as { voting_duration_seconds: number } | null
-
-        setTimeout(() => advanceLights(sessionId, categoryId, 'LIGHTS_1', catTyped?.voting_duration_seconds ?? 30), 2000)
-        await tb(supabase, 'race_sessions').update({ state: 'LIGHTS_1' }).eq('id', sessionId)
 
         return NextResponse.json({ success: true, nextLap })
       }

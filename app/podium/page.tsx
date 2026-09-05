@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { useRaceSession, useActiveEvent } from '@/hooks/useRaceSession'
 import { useLapResults, useCurrentLap } from '@/hooks/useLapResults'
+import { useGridPresence } from '@/hooks/useGridPresence'
 import { StartingLights } from '@/components/StartingLights'
 import { ConnectionStatus, FlagBanner, LapCounter } from '@/components/RaceUI'
 import { formatTime, getPointsForPosition } from '@/lib/utils'
@@ -252,6 +253,7 @@ export default function PodiumPage() {
   const { event, isLoading: eventLoading } = useActiveEvent()
   const categoryId = event?.current_category_id ?? null
   const { session, category, isConnected, isLoading: sessionLoading } = useRaceSession(categoryId)
+  const { onlineCount } = useGridPresence(categoryId)
   const lap = useCurrentLap(categoryId, session?.current_lap_number ?? 1)
 
   if (eventLoading || sessionLoading) {
@@ -279,6 +281,10 @@ export default function PodiumPage() {
           )}
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-green-950/40 border border-green-800/60 text-green-400 font-racing text-xs tracking-widest rounded-sm">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span>👥 {onlineCount} VOTERS ON GRID</span>
+          </div>
           {session && category && (
             <LapCounter current={session.current_lap_number} total={category.lap_count} />
           )}
@@ -308,6 +314,10 @@ export default function PodiumPage() {
               <p className="font-racing text-8xl font-bold text-white/10 tracking-widest">ASPIRE</p>
               <p className="font-racing text-8xl font-bold text-[#e10600]/20 tracking-widest">GRAND PRIX</p>
               <p className="font-racing text-2xl text-white/30 tracking-[0.5em] mt-6">STANDING BY</p>
+              <div className="mt-8 inline-flex items-center gap-2.5 px-5 py-2.5 bg-green-950/40 border border-green-700/60 text-green-400 font-racing text-sm tracking-widest rounded">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping" />
+                <span>{onlineCount} VOTER(S) READY ON GRID</span>
+              </div>
             </motion.div>
           )}
 
@@ -336,7 +346,12 @@ export default function PodiumPage() {
                 votingEndsAt={lap?.voting_ends_at ?? null}
                 duration={category?.voting_duration_seconds ?? 30}
               />
-              <p className="font-racing text-lg text-white/40 tracking-widest mt-6">SCAN QR CODE TO VOTE ON YOUR PHONE</p>
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <p className="font-racing text-lg text-white/40 tracking-widest">SCAN QR CODE TO VOTE ON YOUR PHONE</p>
+                <span className="font-racing text-xs text-green-400/80 bg-green-950/40 border border-green-800/40 px-3 py-1 rounded">
+                  👥 {onlineCount} Voters Active on Grid
+                </span>
+              </div>
             </motion.div>
           )}
 

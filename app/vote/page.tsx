@@ -7,6 +7,9 @@ import { getVoterId, formatTime } from '@/lib/utils'
 import { useRaceSession, useActiveEvent } from '@/hooks/useRaceSession'
 import { useCurrentLap } from '@/hooks/useLapResults'
 import { ConnectionStatus, LapCounter, RaceStatusBadge } from '@/components/RaceUI'
+import { StartingLights } from '@/components/StartingLights'
+import { useGridPresence } from '@/hooks/useGridPresence'
+import type { RaceSession } from '@/lib/supabase/types'
 import { CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 
 export default function VotePage() {
@@ -18,6 +21,7 @@ export default function VotePage() {
   const categoryId = event?.current_category_id ?? null
   const { session, category, isConnected, isLoading: sessionLoading } = useRaceSession(categoryId)
   const lap = useCurrentLap(categoryId, session?.current_lap_number ?? 1)
+  const { onlineCount, isEligible } = useGridPresence(categoryId, voterId, session?.started_at, session?.state)
 
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(null)
   const [hasVoted, setHasVoted] = useState(false)
@@ -64,6 +68,10 @@ export default function VotePage() {
   }, [lap?.voting_ends_at, session?.state])
 
   const handleVote = useCallback(async () => {
+    if (!isEligible) {
+      setError('Mode Penonton: Anda bergabung setelah balapan dimulai.')
+      return
+    }
     if (!selectedCandidate || !lap?.id || !categoryId || !voterId) return
     setIsSubmitting(true)
     setError(null)
@@ -89,7 +97,7 @@ export default function VotePage() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [selectedCandidate, lap?.id, categoryId, voterId, supabase])
+  }, [selectedCandidate, lap?.id, categoryId, voterId, isEligible, supabase])
 
   const isVotingOpen = session?.state === 'VOTING'
   const isLoading = eventLoading || sessionLoading
@@ -132,9 +140,24 @@ export default function VotePage() {
       <div className="bg-[#111] border-b border-[#222] px-4 py-3 flex items-center justify-between">
         <div>
           <p className="font-racing text-xs text-white/40 tracking-widest">ASPIRE GRAND PRIX — CAWU 3 : 2026</p>
-          <p className="font-racing text-sm font-bold text-white tracking-wider">{category.name}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="font-racing text-sm font-bold text-white tracking-wider">{category.name}</p>
+            {isEligible ? (
+              <span className="font-racing text-[10px] px-1.5 py-0.5 bg-green-950/60 border border-green-800 text-green-400 rounded">
+                GRID ON
+              </span>
+            ) : (
+              <span className="font-racing text-[10px] px-1.5 py-0.5 bg-yellow-950/60 border border-yellow-800 text-yellow-400 rounded">
+                SPECTATOR
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 text-green-400 font-racing text-xs bg-green-950/40 px-2 py-1 border border-green-800/50 rounded">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span>👥 {onlineCount}</span>
+          </div>
           <LapCounter current={session.current_lap_number} total={category.lap_count} />
           <ConnectionStatus isConnected={isConnected} />
         </div>
@@ -157,11 +180,10 @@ export default function VotePage() {
               className="text-center py-12"
             >
               {['LIGHTS_1','LIGHTS_2','LIGHTS_3','LIGHTS_4','LIGHTS_5','LIGHTS_OUT','READY'].includes(session.state) && (
-                <>
-                  <div className="text-5xl mb-4">🚦</div>
-                  <p className="font-racing text-xl font-bold text-white tracking-widest">PREPARING TO RACE</p>
-                  <p className="font-racing text-sm text-white/40 tracking-wider mt-2">Starting lights sequence...</p>
-                </>
+                <div className="flex flex-col items-center gap-6 py-6">
+                  <p className="font-racing text-xs text-white/40 tracking-[0.3em]">STARTING SEQUENCE</p>
+                  <StartingLights state={session.state as RaceSession['state']} />
+                </div>
               )}
               {session.state === 'VOTING_CLOSED' && (
                 <>
@@ -247,6 +269,19 @@ export default function VotePage() {
                 </div>
               )}
 
+              {/* Spectator notice */}
+              {!isEligible && (
+                <div className="mb-5 p-4 bg-yellow-950/40 border border-yellow-600/60 rounded text-yellow-200 text-left">
+                  <div className="flex items-center gap-2 font-racing font-bold text-sm text-yellow-400">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <span>MODE PENONTON (SPECTATOR)</span>
+                  </div>
+                  <p className="font-racing text-xs text-yellow-200/80 mt-1.5 leading-relaxed">
+                    Sesi balapan sudah dimulai sebelum Anda bergabung. Hanya siswa yang berada di grid sebelum start yang berhak memilih.
+                  </p>
+                </div>
+              )}
+
               {/* Category */}
               <div className="mb-5 text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -271,9 +306,12 @@ export default function VotePage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    onClick={() => setSelectedCandidate(candidate.id)}
+                    disabled={!isEligible}
+                    onClick={() => isEligible && setSelectedCandidate(candidate.id)}
                     className={`w-full text-left p-4 border transition-all duration-200 flex items-center gap-4 ${
-                      selectedCandidate === candidate.id
+                      !isEligible
+                        ? 'bg-[#0f0f0f] border-[#222] text-white/30 cursor-not-allowed opacity-50'
+                        : selectedCandidate === candidate.id
                         ? 'bg-[#e10600]/20 border-[#e10600] text-white'
                         : 'bg-[#111] border-[#222] text-white/70 hover:border-[#444] hover:text-white'
                     }`}
@@ -308,10 +346,12 @@ export default function VotePage() {
               {/* Submit */}
               <button
                 onClick={handleVote}
-                disabled={!selectedCandidate || isSubmitting}
+                disabled={!isEligible || !selectedCandidate || isSubmitting}
                 className="w-full bg-[#e10600] hover:bg-[#b00000] disabled:opacity-30 disabled:cursor-not-allowed text-white font-racing font-bold text-lg tracking-widest uppercase py-4 transition-all duration-200 flex items-center justify-center gap-3"
               >
-                {isSubmitting ? (
+                {!isEligible ? (
+                  'GRID DITUTUP — HANYA PENONTON'
+                ) : isSubmitting ? (
                   <><Loader2 className="w-5 h-5 animate-spin" /> SUBMITTING...</>
                 ) : (
                   'SUBMIT VOTE'
