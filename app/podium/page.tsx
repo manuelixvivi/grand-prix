@@ -316,7 +316,9 @@ export default function PodiumPage() {
             <motion.div key="lights" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center flex flex-col items-center gap-8">
               {session && (
                 <p className="font-racing text-2xl text-white/50 tracking-[0.3em]">
-                  LAP {session.current_lap_number} — {session.current_lap_number === (category?.lap_count ?? 3) ? 'FINAL LAP' : `LAP ${session.current_lap_number}`}
+                  {session.current_lap_number === (category?.lap_count ?? 3)
+                    ? `LAP ${session.current_lap_number} / ${category?.lap_count ?? 3} — FINAL LAP 🏁`
+                    : `LAP ${session.current_lap_number} / ${category?.lap_count ?? 3}`}
                 </p>
               )}
               <StartingLights state={state as RaceSession['state']} />
@@ -326,7 +328,10 @@ export default function PodiumPage() {
           {/* VOTING */}
           {state === 'VOTING' && (
             <motion.div key="voting" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center w-full max-w-lg">
-              <p className="font-racing text-2xl text-[#00d26a] tracking-[0.4em] mb-4">🟢 VOTING OPEN</p>
+              <p className="font-racing text-2xl text-[#00d26a] tracking-[0.4em] mb-4">
+                🟢 VOTING OPEN — LAP {session?.current_lap_number} / {category?.lap_count ?? 3}
+                {session?.current_lap_number === (category?.lap_count ?? 3) ? ' (FINAL LAP)' : ''}
+              </p>
               <VotingTimer
                 votingEndsAt={lap?.voting_ends_at ?? null}
                 duration={category?.voting_duration_seconds ?? 30}
@@ -345,7 +350,9 @@ export default function PodiumPage() {
               >
                 VOTING CLOSED
               </motion.p>
-              <p className="font-racing text-xl text-white/40 tracking-widest mt-4">Calculating results...</p>
+              <p className="font-racing text-xl text-white/40 tracking-widest mt-4">
+                LAP {session?.current_lap_number} / {category?.lap_count ?? 3} — Calculating results...
+              </p>
             </motion.div>
           )}
 
@@ -353,7 +360,7 @@ export default function PodiumPage() {
           {['RESULT_REVEAL', 'LAP_COMPLETE'].includes(state) && (
             <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col items-center gap-6">
               <p className="font-racing text-3xl font-bold text-white tracking-widest">
-                LAP {session?.current_lap_number} RESULTS
+                LAP {session?.current_lap_number} / {category?.lap_count ?? 3} RESULTS
               </p>
               <ResultReveal lapId={lap?.id ?? null} categoryId={categoryId!} state={state} />
             </motion.div>

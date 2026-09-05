@@ -204,10 +204,14 @@ export default function VotePage() {
                 <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-4" />
               </motion.div>
               <p className="font-racing text-2xl font-bold text-green-400 tracking-widest">VOTE LOCKED</p>
-              <p className="font-racing text-sm text-white/50 tracking-wider mt-2">Your vote has been recorded.</p>
-              {session.current_lap_number < category.lap_count && (
+              <p className="font-racing text-sm text-white/50 tracking-wider mt-2">Suara kamu berhasil dicatat.</p>
+              {session.current_lap_number < category.lap_count ? (
                 <p className="font-racing text-xs text-white/30 tracking-wider mt-4">
-                  You can vote again on LAP {session.current_lap_number + 1}
+                  Kamu bisa voting lagi pada LAP {session.current_lap_number + 1}
+                </p>
+              ) : (
+                <p className="font-racing text-xs text-yellow-400/70 tracking-wider mt-4">
+                  🏁 Lap terakhir selesai! Hasil podium segera diumumkan di layar utama.
                 </p>
               )}
             </motion.div>
@@ -244,7 +248,17 @@ export default function VotePage() {
               )}
 
               {/* Category */}
-              <div className="mb-4 text-center">
+              <div className="mb-5 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="font-racing text-xs text-[#e10600] font-bold tracking-[0.2em] border border-[#e10600]/40 px-3 py-1 uppercase bg-[#e10600]/10">
+                    LAP {session.current_lap_number} / {category.lap_count}
+                  </span>
+                  {session.current_lap_number === category.lap_count && (
+                    <span className="font-racing text-xs text-yellow-400 font-bold tracking-[0.2em] border border-yellow-500/40 px-2.5 py-1 uppercase bg-yellow-500/10">
+                      🏁 FINAL LAP
+                    </span>
+                  )}
+                </div>
                 <p className="font-racing text-xs text-white/40 tracking-[0.3em] uppercase">CURRENT CATEGORY</p>
                 <h2 className="font-racing text-xl font-bold text-white tracking-wider mt-1">{category.name.toUpperCase()}</h2>
               </div>

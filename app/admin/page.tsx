@@ -249,6 +249,28 @@ export default function AdminPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  const updateCategoryLaps = async (newLaps: number) => {
+    if (!selectedCategory || newLaps < 1 || newLaps > 10) return
+    try {
+      await (supabase.from('event_categories') as any).update({ lap_count: newLaps }).eq('id', selectedCategory.id)
+      setSelectedCategory((prev) => (prev ? { ...prev, lap_count: newLaps } : null))
+      showToast(`✓ Jumlah lap diubah menjadi ${newLaps} LAP`)
+    } catch {
+      showToast('Gagal mengubah jumlah lap')
+    }
+  }
+
+  const updateCategoryDuration = async (newDuration: number) => {
+    if (!selectedCategory) return
+    try {
+      await (supabase.from('event_categories') as any).update({ voting_duration_seconds: newDuration }).eq('id', selectedCategory.id)
+      setSelectedCategory((prev) => (prev ? { ...prev, voting_duration_seconds: newDuration } : null))
+      showToast(`✓ Durasi voting diubah menjadi ${newDuration} detik`)
+    } catch {
+      showToast('Gagal mengubah durasi voting')
+    }
+  }
+
   const callAction = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
     setActionLoading(action)
     try {
@@ -344,6 +366,50 @@ export default function AdminPage() {
                 <p className="font-racing text-xs text-white/30 tracking-widest">CATEGORY</p>
                 <p className="font-racing text-xl font-bold text-white tracking-wider">{selectedCategory.name}</p>
                 <p className="font-racing text-xs text-white/40 mt-1">{selectedCategory.candidates.length} candidates • {selectedCategory.lap_count} laps • {selectedCategory.voting_duration_seconds}s voting</p>
+              </div>
+
+              {/* Quick Lap Count & Duration Adjuster for Admin */}
+              <div className="border-t border-[#1a1a1a] pt-3 flex flex-wrap items-center justify-between gap-3 bg-[#0d0d0d] p-2.5 rounded-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-racing text-xs text-white/50 tracking-widest uppercase">JUMLAH LAP:</span>
+                  <div className="flex items-center border border-[#333] bg-[#141414]">
+                    <button
+                      type="button"
+                      disabled={selectedCategory.lap_count <= 1 || (session ? session.state !== 'IDLE' : false)}
+                      onClick={() => updateCategoryLaps(selectedCategory.lap_count - 1)}
+                      className="px-2.5 py-1 text-white/70 hover:text-white font-bold disabled:opacity-20 hover:bg-[#222]"
+                    >
+                      -
+                    </button>
+                    <span className="font-racing text-xs font-bold text-[#e10600] px-2.5 min-w-[54px] text-center">
+                      {selectedCategory.lap_count} LAP
+                    </span>
+                    <button
+                      type="button"
+                      disabled={selectedCategory.lap_count >= 10 || (session ? session.state !== 'IDLE' : false)}
+                      onClick={() => updateCategoryLaps(selectedCategory.lap_count + 1)}
+                      className="px-2.5 py-1 text-white/70 hover:text-white font-bold disabled:opacity-20 hover:bg-[#222]"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="font-racing text-xs text-white/50 tracking-widest uppercase">DURASI:</span>
+                  <select
+                    value={selectedCategory.voting_duration_seconds}
+                    disabled={session ? session.state !== 'IDLE' : false}
+                    onChange={(e) => updateCategoryDuration(parseInt(e.target.value))}
+                    className="bg-[#141414] border border-[#333] text-white font-racing text-xs px-2.5 py-1 outline-none focus:border-[#e10600] cursor-pointer"
+                  >
+                    <option value={15}>15s (Sprint)</option>
+                    <option value={30}>30s (Standar)</option>
+                    <option value={45}>45s</option>
+                    <option value={60}>60s (1 Menit)</option>
+                    <option value={90}>90s</option>
+                  </select>
+                </div>
               </div>
 
               {session && (
