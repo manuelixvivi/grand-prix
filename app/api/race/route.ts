@@ -50,6 +50,21 @@ export async function POST(request: Request) {
         const sessionTyped = session as { id: string } | null
         if (!sessionTyped) return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
 
+        const { data: existingLap } = await tb(supabase, 'laps')
+          .select('id')
+          .eq('event_category_id', categoryId)
+          .eq('lap_number', 1)
+          .maybeSingle()
+
+        if (!existingLap) {
+          await tb(supabase, 'laps').insert({
+            event_category_id: categoryId,
+            lap_number: 1,
+            status: 'PENDING',
+            started_at: nowIso,
+          })
+        }
+
         await tb(supabase, 'events').update({
           current_category_id: categoryId,
           status: 'LIVE',
@@ -224,11 +239,27 @@ export async function POST(request: Request) {
           completed_at: new Date().toISOString(),
         }).eq('event_category_id', categoryId).eq('lap_number', body.lapNumber)
 
+        const nowNextIso = new Date().toISOString()
+        const { data: existingNextLap } = await tb(supabase, 'laps')
+          .select('id')
+          .eq('event_category_id', categoryId)
+          .eq('lap_number', nextLap)
+          .maybeSingle()
+
+        if (!existingNextLap) {
+          await tb(supabase, 'laps').insert({
+            event_category_id: categoryId,
+            lap_number: nextLap,
+            status: 'PENDING',
+            started_at: nowNextIso,
+          })
+        }
+
         await tb(supabase, 'race_sessions').update({
           state: 'LIGHTS_1',
           current_lap_number: nextLap,
           flag: 'NONE',
-          started_at: new Date().toISOString(),
+          started_at: nowNextIso,
         }).eq('id', sessionId)
 
         return NextResponse.json({ success: true, nextLap })

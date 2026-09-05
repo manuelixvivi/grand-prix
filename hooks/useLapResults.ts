@@ -50,7 +50,12 @@ export function useCurrentLap(eventCategoryId: string | null, lapNumber: number)
   const [lap, setLap] = useState<{ id: string; status: string; voting_ends_at: string | null } | null>(null)
 
   useEffect(() => {
-    if (!eventCategoryId) return
+    if (!eventCategoryId) {
+      setLap(null)
+      return
+    }
+    setLap(null)
+
     async function fetch() {
       const { data } = await supabase
         .from('laps')
@@ -58,12 +63,14 @@ export function useCurrentLap(eventCategoryId: string | null, lapNumber: number)
         .eq('event_category_id', eventCategoryId!)
         .eq('lap_number', lapNumber)
         .maybeSingle()
-      setLap(data as { id: string; status: string; voting_ends_at: string | null } | null)
+      if (data) {
+        setLap(data as { id: string; status: string; voting_ends_at: string | null })
+      }
     }
     fetch()
 
     const channel = supabase
-      .channel(`lap_${eventCategoryId}_${lapNumber}`)
+      .channel(`lap_${eventCategoryId}_${lapNumber}_${Date.now()}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'laps',
         filter: `event_category_id=eq.${eventCategoryId}`,

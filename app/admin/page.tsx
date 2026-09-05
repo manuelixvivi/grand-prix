@@ -399,17 +399,20 @@ export default function AdminPage() {
     }
   }, [session, selectedEvent, selectedCategory, lap])
 
+  const postRace = async (action: string, payload: Record<string, unknown> = {}) => {
+    return fetch('/api/race', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...payload }),
+    })
+  }
+
   const handleStartRace = async () => {
     setActionLoading('START_RACE')
     try {
-      const res = await fetch('/api/race', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'START_RACE',
-          eventId: selectedEvent?.id,
-          categoryId: selectedCategory?.id,
-        }),
+      const res = await postRace('START_RACE', {
+        eventId: selectedEvent?.id,
+        categoryId: selectedCategory?.id,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -421,23 +424,23 @@ export default function AdminPage() {
       showToast('🚦 1/5 Lampu Menyala...')
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
 
       await new Promise((r) => setTimeout(r, 1200))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
 
       await new Promise((r) => setTimeout(r, 1200))
-      await callAction('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
-      showToast('🗳️ VOTING OPEN!')
+      await postRace('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
+      showToast('🗳️ VOTING LAP 1 DIBUKA!')
     } catch {
       showToast('Gagal memulai race')
     } finally {
@@ -448,16 +451,11 @@ export default function AdminPage() {
   const handleNextLap = async () => {
     setActionLoading('NEXT_LAP')
     try {
-      const res = await fetch('/api/race', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'NEXT_LAP',
-          sessionId: session?.id,
-          categoryId: selectedCategory?.id,
-          lapNumber: session?.current_lap_number,
-          totalLaps: selectedCategory?.lap_count,
-        }),
+      const res = await postRace('NEXT_LAP', {
+        sessionId: session?.id,
+        categoryId: selectedCategory?.id,
+        lapNumber: session?.current_lap_number,
+        totalLaps: selectedCategory?.lap_count,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -474,22 +472,22 @@ export default function AdminPage() {
       showToast(`🚦 LAP ${data.nextLap} — 1/5 Lampu Menyala...`)
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_2' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_3' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_4' })
 
       await new Promise((r) => setTimeout(r, 800))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_5' })
 
       await new Promise((r) => setTimeout(r, 1200))
-      await callAction('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
+      await postRace('SET_STATE', { sessionId: activeSessionId, state: 'LIGHTS_OUT', flag: 'GREEN' })
 
       await new Promise((r) => setTimeout(r, 1200))
-      await callAction('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
+      await postRace('OPEN_VOTING', { sessionId: activeSessionId, categoryId: selectedCategory?.id })
       showToast(`🗳️ VOTING LAP ${data.nextLap} DIBUKA!`)
     } catch {
       showToast('Gagal lanjut ke lap berikutnya')
