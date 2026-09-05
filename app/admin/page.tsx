@@ -269,7 +269,7 @@ export default function AdminPage() {
       <div className="bg-[#0a0a0a] border-b border-[#1a1a1a] px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="font-racing font-bold text-lg text-white tracking-widest">RACE CONTROL</span>
-          <span className="font-racing text-xs text-white/30 tracking-widest">CLASS GRAND PRIX 2026</span>
+          <span className="font-racing text-xs text-white/30 tracking-widest">ASPIRE GRAND PRIX — CAWU 3 : 2026</span>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/admin/events" className="font-racing text-xs text-white/40 hover:text-white tracking-widest flex items-center gap-1">

@@ -10,9 +10,9 @@ const rajdhani = Rajdhani({
 })
 
 export const metadata: Metadata = {
-  title: 'Class Grand Prix 2026',
-  description: 'The Ultimate Class Championship',
-  keywords: ['grand prix', 'voting', 'class', 'championship'],
+  title: 'Aspire Grand Prix — CAWU 3 : 2026',
+  description: 'Aspire Grand Prix — The Ultimate Championship',
+  keywords: ['aspire grand prix', 'grand prix', 'voting', 'championship'],
 }
 
 export default function RootLayout({

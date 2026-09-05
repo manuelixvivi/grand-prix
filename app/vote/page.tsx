@@ -131,7 +131,7 @@ export default function VotePage() {
       <div className="h-1 bg-[#e10600]" />
       <div className="bg-[#111] border-b border-[#222] px-4 py-3 flex items-center justify-between">
         <div>
-          <p className="font-racing text-xs text-white/40 tracking-widest">CLASS GRAND PRIX 2026</p>
+          <p className="font-racing text-xs text-white/40 tracking-widest">ASPIRE GRAND PRIX — CAWU 3 : 2026</p>
           <p className="font-racing text-sm font-bold text-white tracking-wider">{category.name}</p>
         </div>
         <div className="flex items-center gap-3">

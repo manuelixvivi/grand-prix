@@ -13,7 +13,7 @@ export default function NewEventPage() {
   const router = useRouter()
   const [templates, setTemplates] = useState<(CategoryTemplate & { candidates: { name: string }[] })[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [name, setName] = useState('Class Grand Prix 2026')
+  const [name, setName] = useState('Aspire Grand Prix 2026')
   const [year, setYear] = useState(2026)
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
@@ -120,7 +120,7 @@ export default function NewEventPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-[#0a0a0a] border border-[#222] text-white font-racing px-4 py-3 focus:border-[#e10600] outline-none transition-colors tracking-wider"
-                placeholder="Class Grand Prix 2026"
+                placeholder="Aspire Grand Prix 2026"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

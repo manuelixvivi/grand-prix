@@ -261,7 +261,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE championship_points;
 
 -- Insert demo event
 INSERT INTO events (id, name, year, description, status) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Class Grand Prix 2026', 2026, 'Annual class championship voting event', 'READY');
+  ('00000000-0000-0000-0000-000000000001', 'Aspire Grand Prix 2026', 2026, 'Aspire Grand Prix CAWU 3 : 2026 Championship', 'READY');
 
 -- Insert category templates
 INSERT INTO category_templates (id, name, description, icon, default_lap_count, default_voting_duration_seconds) VALUES

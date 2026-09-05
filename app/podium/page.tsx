@@ -273,7 +273,7 @@ export default function PodiumPage() {
       {/* Header */}
       <div className="bg-[#0a0a0a] border-b border-[#1a1a1a] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <span className="font-racing text-xs text-white/30 tracking-[0.4em]">CLASS GRAND PRIX 2026</span>
+          <span className="font-racing text-xs text-white/30 tracking-[0.4em]">ASPIRE GRAND PRIX — CAWU 3 : 2026</span>
           {category && (
             <span className="font-racing text-sm font-bold text-white tracking-wider">{category.name.toUpperCase()}</span>
           )}
@@ -305,7 +305,7 @@ export default function PodiumPage() {
           {/* IDLE */}
           {state === 'IDLE' && (
             <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
-              <p className="font-racing text-8xl font-bold text-white/10 tracking-widest">CLASS</p>
+              <p className="font-racing text-8xl font-bold text-white/10 tracking-widest">ASPIRE</p>
               <p className="font-racing text-8xl font-bold text-[#e10600]/20 tracking-widest">GRAND PRIX</p>
               <p className="font-racing text-2xl text-white/30 tracking-[0.5em] mt-6">STANDING BY</p>
             </motion.div>

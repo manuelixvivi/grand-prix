@@ -26,7 +26,7 @@ export default function HomePage() {
       <div className="absolute bottom-1 right-0 w-24 h-6 checkered opacity-30" />
 
       <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-4xl mx-auto">
-        {/* Year badge */}
+        {/* Year / Season badge */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -34,7 +34,7 @@ export default function HomePage() {
           className="mb-6"
         >
           <span className="font-racing text-sm tracking-[0.4em] text-[#e10600] font-semibold uppercase border border-[#e10600]/30 px-4 py-1.5 rounded-sm">
-            SEASON 2026
+            CAWU 3 : 2026
           </span>
         </motion.div>
 
@@ -46,7 +46,7 @@ export default function HomePage() {
           className="mb-2"
         >
           <h1 className="font-racing text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight leading-none text-white">
-            CLASS
+            ASPIRE
           </h1>
           <h1 className="font-racing text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight leading-none text-[#e10600] text-glow-red">
             GRAND PRIX

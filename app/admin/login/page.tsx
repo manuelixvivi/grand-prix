@@ -67,7 +67,7 @@ function LoginForm() {
             RACE CONTROL AUTH
           </h1>
           <p className="font-racing text-xs text-white/30 tracking-wider mt-1">
-            CLASS GRAND PRIX 2026
+            ASPIRE GRAND PRIX — CAWU 3 : 2026
           </p>
         </div>
 
