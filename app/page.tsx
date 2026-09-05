@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Flag, Monitor, Smartphone } from 'lucide-react'
+import { Monitor, Smartphone } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -85,41 +85,15 @@ export default function HomePage() {
           </Link>
         </motion.div>
 
-        {/* Admin link */}
+        {/* Season status */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 1.2 }}
-          className="mt-8"
+          className="mt-16 flex items-center gap-2 text-white/30 text-xs font-racing tracking-[0.3em] uppercase"
         >
-          <Link
-            href="/admin"
-            className="text-white/30 hover:text-white/70 text-sm font-racing tracking-widest uppercase transition-colors flex items-center gap-2"
-          >
-            <Flag className="w-4 h-4" />
-            RACE CONTROL
-          </Link>
-        </motion.div>
-
-        {/* Status indicators */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.5 }}
-          className="mt-16 grid grid-cols-3 gap-8 text-center"
-        >
-          {[
-            { label: 'ADMIN', path: '/admin', icon: '🏁' },
-            { label: 'VOTER', path: '/vote', icon: '📱' },
-            { label: 'SCREEN', path: '/podium', icon: '📺' },
-          ].map((item) => (
-            <Link key={item.label} href={item.path} className="group">
-              <div className="text-2xl mb-1">{item.icon}</div>
-              <div className="font-racing text-xs tracking-widest text-white/30 group-hover:text-white/70 uppercase transition-colors">
-                {item.label}
-              </div>
-            </Link>
-          ))}
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span>OFFICIAL BROADCAST SYSTEM</span>
         </motion.div>
       </div>
     </main>

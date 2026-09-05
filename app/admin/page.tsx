@@ -10,7 +10,7 @@ import { ConnectionStatus, LapCounter, RaceStatusBadge, FlagBanner } from '@/com
 import type { Event, EventCategory, EventCategoryCandidate } from '@/lib/supabase/types'
 import {
   Play, Flag, StopCircle, Lock, Eye, SkipForward, Trophy, RotateCcw,
-  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2
+  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut
 } from 'lucide-react'
 
 // ---- Confirmation Dialog ----
@@ -254,6 +254,11 @@ export default function AdminPage() {
     setConfirm({ message, action })
   }
 
+  const handleLogout = async () => {
+    await fetch('/api/admin/logout', { method: 'POST' })
+    window.location.href = '/'
+  }
+
   const state = session?.state ?? 'IDLE'
   const flag = session?.flag ?? 'NONE'
 
@@ -271,6 +276,13 @@ export default function AdminPage() {
             <Settings className="w-3 h-3" /> MANAGE
           </Link>
           <ConnectionStatus isConnected={isConnected} />
+          <button
+            onClick={handleLogout}
+            title="Logout"
+            className="font-racing text-xs text-red-400 hover:text-red-300 tracking-widest flex items-center gap-1 border border-red-900/60 px-2.5 py-1 bg-red-950/30 transition-colors ml-2"
+          >
+            <LogOut className="w-3 h-3" /> LOGOUT
+          </button>
         </div>
       </div>
 
