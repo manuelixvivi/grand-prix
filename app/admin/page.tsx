@@ -10,7 +10,7 @@ import { ConnectionStatus, LapCounter, RaceStatusBadge, FlagBanner } from '@/com
 import type { Event, EventCategory, EventCategoryCandidate } from '@/lib/supabase/types'
 import {
   Play, Flag, StopCircle, Lock, Eye, SkipForward, Trophy, RotateCcw,
-  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut
+  AlertTriangle, ChevronRight, Settings, Loader2, CheckCircle2, LogOut, Sparkles
 } from 'lucide-react'
 
 // ---- Confirmation Dialog ----
@@ -103,19 +103,82 @@ function EventSelector({ onSelect }: { onSelect: (event: Event, category: EventC
   const [events, setEvents] = useState<(Event & { event_categories: (EventCategory & { candidates: EventCategoryCandidate[] })[] })[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
+  const [creatingDemo, setCreatingDemo] = useState(false)
+
+  const fetchEvents = useCallback(async () => {
+    const { data } = await supabase
+      .from('events')
+      .select('*, event_categories(*, candidates:event_category_candidates(*))')
+      .in('status', ['READY', 'LIVE', 'DRAFT'])
+      .order('created_at', { ascending: false })
+    const evList = (data as typeof events) ?? []
+    setEvents(evList)
+    if (evList.length > 0 && !selectedEvent) {
+      setSelectedEvent(evList[0].id)
+    }
+    setLoading(false)
+  }, [supabase, selectedEvent])
 
   useEffect(() => {
-    async function fetch() {
-      const { data } = await supabase
+    fetchEvents()
+  }, [fetchEvents])
+
+  const handleCreateDemo = async () => {
+    setCreatingDemo(true)
+    try {
+      const { data: newEv } = await supabase
         .from('events')
-        .select('*, event_categories(*, candidates:event_category_candidates(*))')
-        .in('status', ['READY', 'LIVE', 'DRAFT'])
-        .order('created_at', { ascending: false })
-      setEvents((data as typeof events) ?? [])
-      setLoading(false)
+        .insert({
+          name: 'Aspire Grand Prix 2026',
+          year: 2026,
+          description: 'Aspire Grand Prix CAWU 3 : 2026 Championship',
+          status: 'READY',
+        })
+        .select()
+        .single()
+
+      if (newEv) {
+        const categories = [
+          { name: 'Most Chaotic Driver', icon: '🌪️', candidates: ['Kevin', 'Manuel', 'Andrew', 'Jason', 'Daniel'] },
+          { name: 'Class Comedian', icon: '😂', candidates: ['Andrew', 'Jason', 'Kevin'] },
+          { name: 'Sleepiest Driver', icon: '😴', candidates: ['Daniel', 'Kevin', 'Manuel'] },
+        ]
+
+        for (let i = 0; i < categories.length; i++) {
+          const catDef = categories[i]
+          const { data: newCat } = await supabase
+            .from('event_categories')
+            .insert({
+              event_id: newEv.id,
+              name: catDef.name,
+              icon: catDef.icon,
+              lap_count: 3,
+              voting_duration_seconds: 30,
+              display_order: i + 1,
+              status: 'PENDING',
+              scoring_config: { "1": 25, "2": 18, "3": 15, "4": 12, "5": 10 },
+            })
+            .select()
+            .single()
+
+          if (newCat) {
+            await supabase.from('event_category_candidates').insert(
+              catDef.candidates.map((cName, idx) => ({
+                event_category_id: newCat.id,
+                name: cName,
+                display_order: idx + 1,
+              }))
+            )
+          }
+        }
+      }
+      await fetchEvents()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCreatingDemo(false)
     }
-    fetch()
-  }, [supabase])
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center h-40">
@@ -125,45 +188,64 @@ function EventSelector({ onSelect }: { onSelect: (event: Event, category: EventC
 
   return (
     <div className="space-y-4">
-      <h2 className="font-racing text-lg text-white/60 tracking-widest">SELECT EVENT & CATEGORY</h2>
+      <div className="bg-[#141414] border border-[#2a2a2a] p-4 text-center">
+        <p className="font-racing text-xs text-[#e10600] tracking-[0.3em] font-bold uppercase mb-1">
+          LANGKAH 1 DARI 2
+        </p>
+        <h2 className="font-racing text-lg font-bold text-white tracking-wider">
+          PILIH KATEGORI UNTUK MEMULAI BALAPAN (START RACE)
+        </h2>
+        <p className="font-racing text-xs text-white/40 tracking-wider mt-1">
+          Klik salah satu kategori di bawah ini, tombol START RACE akan langsung muncul
+        </p>
+      </div>
+
       {events.map((event) => (
         <div key={event.id} className="border border-[#222] bg-[#0a0a0a]">
           <button
             onClick={() => setSelectedEvent(selectedEvent === event.id ? null : event.id)}
-            className="w-full flex items-center justify-between p-4 text-left hover:bg-[#111] transition-colors"
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-[#111] transition-colors border-b border-[#1a1a1a]"
           >
             <div>
               <p className="font-racing text-base font-bold text-white tracking-wider">{event.name}</p>
-              <p className="font-racing text-xs text-white/40 tracking-widest">{event.status} • {event.event_categories.length} CATEGORIES</p>
+              <p className="font-racing text-xs text-white/40 tracking-widest">{event.status} • {event.event_categories.length} KATEGORI</p>
             </div>
             <ChevronRight className={`w-4 h-4 text-white/30 transition-transform ${selectedEvent === event.id ? 'rotate-90' : ''}`} />
           </button>
           <AnimatePresence>
             {selectedEvent === event.id && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                <div className="border-t border-[#222] divide-y divide-[#111]">
+                <div className="divide-y divide-[#141414]">
                   {event.event_categories
                     .sort((a, b) => a.display_order - b.display_order)
                     .map((cat) => (
-                      <button
+                      <div
                         key={cat.id}
-                        onClick={() => onSelect(event, cat)}
-                        className="w-full flex items-center gap-3 px-6 py-3 text-left hover:bg-[#e10600]/10 transition-colors"
+                        className="w-full flex items-center justify-between p-4 hover:bg-[#e10600]/5 transition-colors gap-3"
                       >
-                        <span className="text-lg">{cat.icon}</span>
-                        <div className="flex-1">
-                          <p className="font-racing text-sm font-bold text-white tracking-wider">{cat.name}</p>
-                          <p className="font-racing text-xs text-white/30">{cat.candidates.length} candidates • {cat.lap_count} laps</p>
+                        <div className="flex items-center gap-3 flex-1">
+                          <span className="text-2xl">{cat.icon}</span>
+                          <div>
+                            <p className="font-racing text-base font-bold text-white tracking-wider">{cat.name}</p>
+                            <p className="font-racing text-xs text-white/40">
+                              {cat.candidates.length} kandidat · {cat.lap_count} laps · {cat.voting_duration_seconds}s
+                            </p>
+                          </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white/20" />
-                      </button>
+                        <button
+                          onClick={() => onSelect(event, cat)}
+                          className="bg-[#e10600] hover:bg-[#b00000] text-white font-racing text-xs font-bold px-4 py-2.5 tracking-wider uppercase flex items-center gap-1.5 transition-colors flex-shrink-0"
+                        >
+                          <Play className="w-3 h-3 fill-current" /> PILIH & START
+                        </button>
+                      </div>
                     ))}
                   {event.event_categories.length === 0 && (
-                    <div className="p-4 text-center">
-                      <p className="font-racing text-xs text-white/40 mb-2">Belum ada kategori di event ini</p>
+                    <div className="p-6 text-center">
+                      <p className="font-racing text-xs text-white/40 mb-3">Belum ada kategori di event ini</p>
                       <Link
                         href={`/admin/events/${event.id}`}
-                        className="font-racing text-xs bg-[#e10600] text-white px-3 py-1.5 inline-block font-bold tracking-wider uppercase hover:bg-[#b00000]"
+                        className="font-racing text-xs bg-[#e10600] text-white px-4 py-2 inline-block font-bold tracking-wider uppercase hover:bg-[#b00000]"
                       >
                         + Tambah Kategori Sekarang
                       </Link>
@@ -184,6 +266,23 @@ function EventSelector({ onSelect }: { onSelect: (event: Event, category: EventC
           </AnimatePresence>
         </div>
       ))}
+
+      {events.length === 0 && (
+        <div className="text-center py-12 border border-dashed border-[#222] bg-[#0a0a0a] p-6 space-y-4">
+          <p className="font-racing text-white/40 tracking-widest text-base">BELUM ADA EVENT AKTIF DI DATABASE</p>
+          <p className="font-racing text-xs text-white/30 max-w-md mx-auto">
+            Klik tombol di bawah ini untuk membuat event otomatis beserta kategori & kandidat demo siap balapan:
+          </p>
+          <button
+            onClick={handleCreateDemo}
+            disabled={creatingDemo}
+            className="bg-[#e10600] hover:bg-[#b00000] text-white font-racing text-xs font-bold px-6 py-3 tracking-widest uppercase transition-colors inline-flex items-center gap-2"
+          >
+            {creatingDemo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            ⚡ BUAT EVENT DEMO (ASPIRE GRAND PRIX)
+          </button>
+        </div>
+      )}
 
       <div className="pt-2 flex items-center justify-between border-t border-[#1a1a1a]">
         <Link
@@ -427,31 +526,35 @@ export default function AdminPage() {
             <div className="space-y-3">
               <p className="font-racing text-xs text-white/30 tracking-[0.3em]">RACE CONTROLS</p>
 
-              {/* Start Race */}
-              {['IDLE', 'READY'].includes(state) && !session && (
-                <AdminButton
-                  variant="primary"
-                  icon={Play}
-                  onClick={() => callAction('START_RACE')}
-                  loading={actionLoading === 'START_RACE'}
-                >
-                  START RACE
-                </AdminButton>
-              )}
-              {state === 'IDLE' && session && (
-                <AdminButton
-                  variant="primary"
-                  icon={Play}
-                  onClick={() => callAction('START_RACE')}
-                  loading={actionLoading === 'START_RACE'}
-                >
-                  RESTART RACE
-                </AdminButton>
+              {/* Start Race: always available if idle, ready, ended, or no session */}
+              {(!session || ['IDLE', 'READY', 'CHEQUERED_FLAG'].includes(state)) && (
+                <div className="space-y-2">
+                  <AdminButton
+                    variant="primary"
+                    icon={Play}
+                    onClick={() => callAction('START_RACE')}
+                    loading={actionLoading === 'START_RACE'}
+                  >
+                    {state === 'CHEQUERED_FLAG' ? '🏁 BALAPAN ULANG (RESTART RACE)' : '🏁 START RACE (MULAI BALAPAN)'}
+                  </AdminButton>
+                  <p className="text-center font-racing text-xs text-white/40 tracking-wider">
+                    Lampu start F1 akan menyala otomatis di layar utama dan sesi voting dibuka
+                  </p>
+                </div>
               )}
 
-              {/* During lights */}
-              {['LIGHTS_1','LIGHTS_2','LIGHTS_3','LIGHTS_4','LIGHTS_5','LIGHTS_OUT','READY'].includes(state) && (
-                <div className="grid grid-cols-2 gap-3">
+              {/* During lights sequence */}
+              {['LIGHTS_1','LIGHTS_2','LIGHTS_3','LIGHTS_4','LIGHTS_5','LIGHTS_OUT'].includes(state) && (
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-red-950/40 border border-red-700 text-center animate-pulse">
+                    <p className="font-racing text-sm text-red-300 font-bold tracking-widest">
+                      🚦 LAMPU START SEDANG MENYALA...
+                    </p>
+                    <p className="font-racing text-xs text-white/50 tracking-wider mt-1">
+                      Voting akan terbuka otomatis setelah lampu padam (Lights Out)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                   <AdminButton
                     variant="yellow"
                     icon={Flag}
@@ -469,7 +572,8 @@ export default function AdminPage() {
                     RED FLAG
                   </AdminButton>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* During voting */}
               {state === 'VOTING' && (
